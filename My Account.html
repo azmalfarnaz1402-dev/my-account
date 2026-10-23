@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>My Account</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root{--bg:#f3f5fb;--card:#fff;--tx:#1a1d29;--mut:#6b7280;--pri:#4f46e5;--bd:#e3e6ef;--ok:#059669}
+@media(prefers-color-scheme:dark){:root{--bg:#10121a;--card:#1b1e2b;--tx:#eef0f7;--mut:#9aa0b4;--pri:#818cf8;--bd:#2b2f40;--ok:#34d399}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;min-height:100vh;display:flex;justify-content:center;padding:20px}
+.w{width:100%;max-width:420px;margin-top:4vh}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:22px;margin-bottom:14px}
+h1{font-size:22px;margin:0 0 4px}.m{color:var(--mut);font-size:14px;margin:0 0 16px}
+input,select{width:100%;padding:13px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);font-size:16px;margin-bottom:10px}
+button{width:100%;padding:13px;border:0;border-radius:10px;background:var(--pri);color:#fff;font-size:16px;font-weight:600;cursor:pointer}
+button.g{background:transparent;color:var(--mut);border:1px solid var(--bd);margin-top:8px}
+button.r{background:#dc2626}
+.row{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--bd)}
+.row:last-child{border:0}.row span{color:var(--mut)}.row b{font-size:20px}
+.tot{background:var(--pri);color:#fff;border:0}.tot .m,.tot b{color:#fff}.tot b{font-size:32px}
+.err{color:#dc2626;font-size:14px;min-height:18px;margin-bottom:6px}.ok{color:var(--ok);font-size:14px;margin-bottom:6px}
+label{font-size:13px;color:var(--mut)}.badge{font-size:12px;background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:3px 10px;color:var(--mut)}
+.seg{display:flex;gap:8px;margin-bottom:10px}.seg button{background:var(--bg);color:var(--tx);border:1px solid var(--bd);padding:11px}.seg button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+.h{padding:12px 0;border-bottom:1px solid var(--bd);font-size:14px}.h:last-child{border:0}.h .d{color:var(--mut);font-size:12px;margin-bottom:3px}
+.s{display:inline-block;font-size:12px;background:var(--bg);border:1px solid var(--bd);border-radius:20px;padding:1px 9px;margin-left:6px;color:var(--tx);font-weight:400}
+.sm{width:auto;padding:6px 14px;font-size:13px;margin:8px 6px 0 0}
+</style></head><body><div class="w" id="app"></div>
+
+<script>
+// ===== 2) LOGIN DETAILS =====
+const ADMIN={id:"ajs",pw:"091420"};
+const VIEWER={id:"user",pw:"goodtime"};
+// ==========================================================
+
+let S={current:300,credit:500,source:"GPay",history:[]},me=null,msg="",selSrc="GPay",editIdx=-1,resetAsk=false,db=null;
+const $=h=>document.getElementById("app").innerHTML=h;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const inr=n=>"₹"+Number(n||0).toLocaleString("en-IN");
+const fix=v=>Object.assign({source:"GPay",history:[]},v);
+
+async function init(){
+  render();
+  try{
+    const c=await claude.use("db");
+    if(c){ db=c; db.doc("app/account").onSnapshot(d=>{const v=d&&(d.data?d.data():d);if(v&&typeof v.current==="number"){S=fix(v);render();}}); }
+  }catch(e){}
+}
+async function persist(m){
+  try{
+    if(db) await db.doc("app/account").set(S);
+    
+    msg=m;
+  }catch(e){msg="Save aagala: "+e.message;}
+  render();
+}
+function login(){
+  const id=document.getElementById("i").value.trim(),pw=document.getElementById("p").value;
+  if(id===ADMIN.id&&pw===ADMIN.pw) me={id,role:"admin"};
+  else if(id===VIEWER.id&&pw===VIEWER.pw) me={id,role:"viewer"};
+  else{msg="Login ID / Password thappu";return render();}
+  msg="";render();
+}
+function logout(){me=null;msg="";editIdx=-1;resetAsk=false;render();}
+function setSrc(s){selSrc=s;document.querySelectorAll(".seg button").forEach(b=>b.classList.toggle("on",b.dataset.s===s));}
+function save(){
+  const c=Number(document.getElementById("c").value),r=Number(document.getElementById("r").value);
+  if(isNaN(c)||isNaN(r)){msg="Number mattum kudunga";return render();}
+  if(c===S.current&&r===S.credit&&selSrc===S.source){msg="Edhuvum maaralaye";return render();}
+  const now=new Date().toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:true});
+  S={current:c,credit:r,source:selSrc,history:[{at:now,source:selSrc,credit:r,current:c,total:c+r},...(S.history||[])].slice(0,200)};
+  persist("Save aayiduchu ✓");
+}
+function askReset(v){resetAsk=v;render();}
+function doReset(){resetAsk=false;editIdx=-1;S={current:0,credit:0,source:"GPay",history:[]};persist("Ellam reset aayiduchu ✓ — pudhusa enter pannunga");}
+function delH(i){S.history.splice(i,1);editIdx=-1;persist("History delete aayiduchu ✓");}
+function editH(i){editIdx=i;render();}
+function cancelH(){editIdx=-1;render();}
+function saveH(i){
+  const c=Number(document.getElementById("ec").value),r=Number(document.getElementById("er").value),s=document.getElementById("es").value;
+  if(isNaN(c)||isNaN(r)){msg="Number mattum kudunga";return render();}
+  const e=S.history[i];e.current=c;e.credit=r;e.source=s;e.total=c+r;e.edited=true;
+  if(i===0){S.current=c;S.credit=r;S.source=s;}
+  editIdx=-1;persist("History edit aayiduchu ✓");
+}
+function hist(){
+  const h=S.history||[],adm=me&&me.role==="admin";
+  if(!h.length) return '<p class="m">Innum history illa</p>';
+  return h.map((e,i)=>{
+    if(adm&&editIdx===i) return `<div class="h"><div class="d">🕒 ${esc(e.at)} — Edit</div>
+      <label>Current Balance</label><input id="ec" type="number" value="${e.current||0}">
+      <label>Credit Amount</label><input id="er" type="number" value="${e.credit||0}">
+      <label>Source</label><select id="es"><option ${e.source==="GPay"?"selected":""}>GPay</option><option ${e.source==="Bank Transfer"?"selected":""}>Bank Transfer</option></select>
+      <button class="sm" onclick="saveH(${i})">Save</button><button class="sm g" onclick="cancelH()">Cancel</button></div>`;
+    return `<div class="h"><div class="d">🕒 ${esc(e.at)}</div>
+      <div style="font-size:18px;font-weight:700;color:var(--ok)">+ ${inr(e.credit)}<span class="s">${esc(e.source)}</span>${e.edited?'<span class="s">edited</span>':''}</div>
+      <div style="margin-top:4px;color:var(--mut)">Current ${inr(e.current)} + Credit ${inr(e.credit)}</div>
+      <div style="margin-top:2px">Total Balance: <b>${inr(e.total)}</b></div>
+      ${adm?`<button class="sm" onclick="editH(${i})">Edit</button><button class="sm g" onclick="delH(${i})">Delete</button>`:""}</div>`;
+  }).join("");
+}
+function render(){
+  if(!me){
+    $(`<div class="card"><h1>🔐 Login</h1><p class="m">ID & Password kudunga</p>
+    <input id="i" placeholder="Login ID" autocomplete="username">
+    <input id="p" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')login()">
+    <div class="err">${esc(msg)}</div><button onclick="login()">Login</button></div>`);
+    return;
+  }
+  const total=S.current+S.credit,adm=me.role==="admin";selSrc=S.source||"GPay";
+  $(`<h1>Account Details</h1><p class="m"><span class="badge" style="margin:0">${esc(me.id)} · ${adm?"Admin":"View only"}</span></p>
+  <div class="card tot"><p class="m">Total Balance</p><b>${inr(total)}</b></div>
+  <div class="card">
+    <div class="row"><span>Current Balance</span><b>${inr(S.current)}</b></div>
+    <div class="row"><span>Credit Amount (${esc(S.source||"GPay")})</span><b>${inr(S.credit)}</b></div>
+    <div class="row"><span>Total Balance</span><b>${inr(total)}</b></div>
+  </div>
+  ${adm?`<div class="card"><h1 style="font-size:18px">✏️ Admin Edit</h1><p class="m">Neenga mattum tha maathalam</p>
+    <label>Current Balance</label><input id="c" type="number" value="${S.current}">
+    <label>Credit Source</label><div class="seg"><button data-s="GPay" class="${selSrc==="GPay"?"on":""}" onclick="setSrc('GPay')">GPay</button><button data-s="Bank Transfer" class="${selSrc==="Bank Transfer"?"on":""}" onclick="setSrc('Bank Transfer')">Bank Transfer</button></div>
+    <label>Credit Amount</label><input id="r" type="number" value="${S.credit}">
+    <button onclick="save()">Save</button></div>
+  <div class="card"><h1 style="font-size:18px">🗑️ Reset All</h1><p class="m">Account value + history ellam delete aagum</p>${resetAsk?'<button class="r" onclick="doReset()">Aamaa, Ellam Delete Pannu</button><button class="g" onclick="askReset(false)">Cancel</button>':'<button class="r" onclick="askReset(true)">Reset All</button>'}</div>`:""}
+  <div class="${msg.includes("✓")?"ok":"err"}">${esc(msg)}</div>
+  <div class="card"><h1 style="font-size:18px">🕘 History</h1><p class="m">Ella credit maatramum</p>${hist()}</div>
+  <button class="g" onclick="logout()">Logout</button>`);
+}
+init();
+</script></body></html>
